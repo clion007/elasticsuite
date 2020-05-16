@@ -14,6 +14,7 @@
 
 namespace Smile\ElasticsuiteCore\Client;
 
+use Elasticsearch\Common\Exceptions\Missing404Exception;
 use Smile\ElasticsuiteCore\Api\Client\ClientConfigurationInterface;
 use Smile\ElasticsuiteCore\Api\Client\ClientInterface;
 
@@ -95,9 +96,25 @@ class Client implements ClientInterface
     /**
      * {@inheritDoc}
      */
-    public function putMapping($indexName, $type, $mapping)
+    public function putMapping($indexName, $mapping)
     {
-        $this->esClient->indices()->putMapping(['index' => $indexName, 'type'  => $type, 'body'  => [$type => $mapping]]);
+        $this->esClient->indices()->putMapping(['index' => $indexName, 'body'  => $mapping]);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function getMapping($indexName)
+    {
+        return $this->esClient->indices()->getMapping(['index' => $indexName]);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function getSettings($indexName)
+    {
+        return $this->esClient->indices()->getSettings(['index' => $indexName]);
     }
 
     /**
@@ -129,6 +146,14 @@ class Client implements ClientInterface
         }
 
         return array_keys($indices);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function getIndexAliases($params = []): array
+    {
+        return $this->esClient->indices()->getAliases($params);
     }
 
     /**
@@ -166,9 +191,15 @@ class Client implements ClientInterface
     /**
      * {@inheritDoc}
      */
-    public function indexStats($indexName)
+    public function indexStats($indexName): array
     {
-        return $this->esClient->indices()->stats(['index' => $indexName]);
+        try {
+            $stats = $this->esClient->indices()->stats(['index' => $indexName]);
+        } catch (\Exception $e) {
+            throw new Missing404Exception($e->getMessage());
+        }
+
+        return $stats;
     }
 
     /**

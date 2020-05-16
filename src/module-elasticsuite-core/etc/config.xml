@@ -23,6 +23,7 @@
                 <servers>localhost:9200</servers>
                 <connection_timeout>1</connection_timeout>
                 <timeout>30</timeout>
+                <max_parallel_handles>10</max_parallel_handles>
             </es_client>
             <indices_settings>
                 <alias>magento2</alias>
@@ -38,6 +39,12 @@
                 <max_size>3</max_size>
             </term_autocomplete>
         </smile_elasticsuite_autocomplete_settings>
+
+        <catalog>
+            <search>
+                <min_query_length>2</min_query_length>
+            </search>
+        </catalog>
 
     </default>
 </config>

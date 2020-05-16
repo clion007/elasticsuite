@@ -75,14 +75,18 @@ class SessionIndex implements SessionIndexInterface
         $indices           = [];
 
         foreach ($sessionIdsByStore as $storeId => $sessionIds) {
-            $sessionData = $this->resourceModel->getSessionData($storeId, $sessionIds);
+            try {
+                $sessionData = $this->resourceModel->getSessionData($storeId, $sessionIds);
+            } catch (\Magento\Framework\Exception\NoSuchEntityException $e) {
+                $sessionData = [];
+            }
 
             foreach ($sessionData as $session) {
                 if (isset($session['store_id'])) {
                     $index = $this->indexResolver->getIndex(self::INDEX_IDENTIFIER, $session['store_id'], $session['start_date']);
                     if ($index !== null) {
                         $indices[$index->getName()] = $index;
-                        $bulk->addDocument($index, $index->getDefaultSearchType(), $session['session_id'], $session);
+                        $bulk->addDocument($index, $session['session_id'], $session);
                     }
                 }
             }

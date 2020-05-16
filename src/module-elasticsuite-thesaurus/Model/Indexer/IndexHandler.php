@@ -112,6 +112,7 @@ class IndexHandler
             'max_shingle_size' => ThesaurusIndex::MAX_SIZE,
         ];
 
+        $settings['max_shingle_diff'] = $this->indexSettingsHelper->getMaxShingleDiff($settings['analysis']);
         $settings['analysis']['filter']['type_filter'] = [
             'type' => 'keep_types',
             'types' => [ "SYNONYM" ],
@@ -136,7 +137,7 @@ class IndexHandler
     {
         $settings['analysis']['analyzer'][$type] = [
             'tokenizer' => 'whitespace',
-            'filter' => ['lowercase', 'shingle'],
+            'filter' => ['lowercase'],
         ];
 
         if (!empty($values)) {
@@ -146,13 +147,14 @@ class IndexHandler
         }
 
         $settings['analysis']['analyzer'][$type]['filter'][] = 'type_filter';
+        $settings['analysis']['analyzer'][$type]['filter'][] = 'shingle';
 
         return $settings;
     }
 
     /**
      * Prepare the thesaurus data to be saved.
-     * Spaces are replaced with "_" into multiwords expression (ex foo bar => foo_bar).
+     * Spaces and hyphens are replaced with "_" into multiwords expression (ex foo bar => foo_bar).
      *
      * @param string[] $rows Original thesaurus text rows.
      *
@@ -161,7 +163,7 @@ class IndexHandler
     private function prepareSynonymFilterData($rows)
     {
         $rowMaper = function ($row) {
-            return preg_replace('/([\w])[\s-](?=[\w])/u', '\1_', $row);
+            return preg_replace('/([^\s-])[\s-]+(?=[^\s-])/u', '\1_', $row);
         };
 
         return array_map($rowMaper, $rows);

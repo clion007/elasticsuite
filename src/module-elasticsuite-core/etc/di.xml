@@ -26,7 +26,7 @@
     <!-- Cluster namespace related DI -->
     <preference for="Smile\ElasticsuiteCore\Api\Cluster\ClusterInfoInterface"
                 type="Smile\ElasticsuiteCore\Cluster\ClusterInfo" />
-                
+
     <!-- Indices namespace related DI -->
     <preference for="Smile\ElasticsuiteCore\Api\Index\IndexInterface"
                 type="Smile\ElasticsuiteCore\Index\Index" />
@@ -37,8 +37,8 @@
     <preference for="Smile\ElasticsuiteCore\Api\Index\IndexOperationInterface"
                 type="Smile\ElasticsuiteCore\Index\IndexOperation" />
 
-    <preference for="Smile\ElasticsuiteCore\Api\Index\TypeInterface"
-                type="Smile\ElasticsuiteCore\Index\Type" />
+    <preference for="Smile\ElasticsuiteCore\Api\Index\AsyncIndexOperationInterface"
+                type="Smile\ElasticsuiteCore\Index\AsyncIndexOperation" />
 
     <preference for="Smile\ElasticsuiteCore\Api\Index\MappingInterface"
                 type="Smile\ElasticsuiteCore\Index\Mapping" />
@@ -98,6 +98,7 @@
                 <item name="commonQuery" xsi:type="object">commonQueryFactory</item>
                 <item name="multiMatchQuery" xsi:type="object">multiMatchQueryFactory</item>
                 <item name="moreLikeThisQuery" xsi:type="object">moreLikeThisQueryFactory</item>
+                <item name="matchPhrasePrefixQuery" xsi:type="object">matchPhrasePrefixFactory</item>
                 <item name="functionScore" xsi:type="object">functionScoreFactory</item>
             </argument>
         </arguments>
@@ -117,6 +118,7 @@
     <virtualType name="multiMatchQueryFactory" type="Smile\ElasticsuiteCore\Search\Request\Query\MultiMatchFactory" />
     <virtualType name="moreLikeThisQueryFactory" type="Smile\ElasticsuiteCore\Search\Request\Query\MoreLikeThisFactory" />
     <virtualType name="functionScoreFactory" type="Smile\ElasticsuiteCore\Search\Request\Query\FunctionScoreFactory" />
+    <virtualType name="matchPhrasePrefixFactory" type="Smile\ElasticsuiteCore\Search\Request\Query\MatchPhrasePrefixFactory" />
 
     <type name="Smile\ElasticsuiteCore\Search\Adapter\Elasticsuite\Request\Query\Builder">
         <arguments>
@@ -135,6 +137,7 @@
                 <item name="multiMatchQuery" xsi:type="object">Smile\ElasticsuiteCore\Search\Adapter\Elasticsuite\Request\Query\Builder\MultiMatch\Proxy</item>
                 <item name="functionScore" xsi:type="object">Smile\ElasticsuiteCore\Search\Adapter\Elasticsuite\Request\Query\Builder\FunctionScore\Proxy</item>
                 <item name="moreLikeThisQuery" xsi:type="object">Smile\ElasticsuiteCore\Search\Adapter\Elasticsuite\Request\Query\Builder\MoreLikeThis\Proxy</item>
+                <item name="matchPhrasePrefixQuery" xsi:type="object">Smile\ElasticsuiteCore\Search\Adapter\Elasticsuite\Request\Query\Builder\MatchPhrasePrefix\Proxy</item>
             </argument>
         </arguments>
     </type>
@@ -428,6 +431,21 @@
 
     <type name="Smile\ElasticsuiteCore\Model\Search\Request\RelevanceConfig\Structure\Element\Group\Proxy" shared="false"/>
 
+    <type name="Magento\Framework\App\ScopeResolverPool">
+        <arguments>
+            <argument name="scopeResolvers" xsi:type="array">
+                <item name="containers" xsi:type="object">Smile\ElasticsuiteCore\Model\Search\Request\RelevanceConfig\Resolver\Containers</item>
+                <item name="containers_stores" xsi:type="object">Smile\ElasticsuiteCore\Model\Search\Request\RelevanceConfig\Resolver\Containers</item>
+            </argument>
+        </arguments>
+    </type>
+
+    <type name="Smile\ElasticsuiteCore\Model\Search\Request\RelevanceConfig\Resolver\Containers">
+        <arguments>
+            <argument name="baseConfig" xsi:type="object">Smile\ElasticsuiteCore\Search\Request\ContainerConfiguration\BaseConfig\Proxy</argument>
+        </arguments>
+    </type>
+
     <!-- Setting ElasticSuite to use the default (which does nothing) data provider for suggestions -->
     <type name="Magento\AdvancedSearch\Model\SuggestedQueries">
         <arguments>
@@ -461,6 +479,52 @@
                 <!-- Consistent with index.max_result_window default value. No real point about getting more docs at once. -->
                 <item name="elasticsuite" xsi:type="number">100000</item>
             </argument>
+        </arguments>
+    </type>
+
+    <!-- ElasticSearch <7 deprecation plugins -->
+    <type name="Smile\ElasticsuiteCore\Index\Mapping">
+        <plugin name="mappingBackwardCompatibility" type="Smile\ElasticsuiteCore\Plugin\Deprecation\Index\MappingPlugin"/>
+    </type>
+
+    <type name="Smile\ElasticsuiteCore\Api\Client\ClientInterface">
+        <plugin name="indexSettingsBackwardCompatibility" type="Smile\ElasticsuiteCore\Plugin\Deprecation\Client\ClientPlugin"/>
+    </type>
+
+    <type name="\Smile\ElasticsuiteCore\Search\Adapter\Elasticsuite\Request\Mapper">
+        <plugin name="removeTrackTotalHitsPlugin" type="Smile\ElasticsuiteCore\Plugin\Deprecation\Search\Adapter\Elasticsuite\Request\MapperPlugin"/>
+    </type>
+
+    <!-- ElasticSearch >= 7.3.0 plugins -->
+    <type name="Smile\ElasticsuiteCore\Search\Request\Query\Common">
+        <plugin name="cutoffFrequencyForwardCompatibility" type="Smile\ElasticsuiteCore\Plugin\Deprecation\Search\Request\QueryInterfacePlugin"/>
+    </type>
+    <type name="Smile\ElasticsuiteCore\Search\Request\Query\MultiMatch">
+        <plugin name="cutoffFrequencyForwardCompatibility" type="Smile\ElasticsuiteCore\Plugin\Deprecation\Search\Request\QueryInterfacePlugin"/>
+    </type>
+
+    <!-- Async Operations -->
+    <virtualType name="elasticsuiteAsyncClientBuilder" type="Smile\ElasticsuiteCore\Client\ClientBuilder">
+        <arguments>
+            <argument name="selector" xsi:type="string">\Elasticsearch\ConnectionPool\Selectors\RoundRobinSelector</argument>
+        </arguments>
+    </virtualType>
+
+    <virtualType name="elasticsuiteAsyncClient" type="Smile\ElasticsuiteCore\Client\Client">
+        <arguments>
+            <argument name="clientBuilder" xsi:type="object">elasticsuiteAsyncClientBuilder</argument>
+        </arguments>
+    </virtualType>
+
+    <type name="Smile\ElasticsuiteCore\Api\Index\AsyncIndexOperationInterface">
+        <arguments>
+            <argument name="client" xsi:type="object">elasticsuiteAsyncClient</argument>
+        </arguments>
+    </type>
+
+    <type name="\Smile\ElasticsuiteCore\Indexer\GenericIndexerHandler">
+        <arguments>
+            <argument name="indexOperation" xsi:type="object">Smile\ElasticsuiteCore\Api\Index\AsyncIndexOperationInterface</argument>
         </arguments>
     </type>
 </config>

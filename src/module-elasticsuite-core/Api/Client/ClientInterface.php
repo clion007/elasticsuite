@@ -81,12 +81,29 @@ interface ClientInterface
      * Update index mapping.
      *
      * @param string $indexName Index name.
-     * @param string $type      Type.
      * @param array  $mapping   Mapping definition.
      *
      * @return void
      */
-    public function putMapping($indexName, $type, $mapping);
+    public function putMapping($indexName, $mapping);
+
+    /**
+     * Get the Mapping of an Index
+     *
+     * @param string $indexName Index name.
+     *
+     * @return array
+     */
+    public function getMapping($indexName);
+
+    /**
+     * Get the Settings of an Index
+     *
+     * @param string $indexName Index name.
+     *
+     * @return array
+     */
+    public function getSettings($indexName);
 
     /**
      * Optimize an index (force segment merging).

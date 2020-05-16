@@ -42,13 +42,6 @@ class Config extends \Magento\Framework\Config\Data
     const CACHE_ID = 'indices_config';
 
     /**
-     * Factory used to build mapping types.
-     *
-     * @var \Smile\ElasticsuiteCore\Api\Index\TypeInterfaceFactory
-     */
-    private $typeFactory;
-
-    /**
      * Factory used to build mappings.
      *
      * @var \Smile\ElasticsuiteCore\Api\Index\MappingInterfaceFactory
@@ -87,7 +80,6 @@ class Config extends \Magento\Framework\Config\Data
      *
      * @param Reader                    $reader                    Config file reader.
      * @param CacheInterface            $cache                     Cache instance.
-     * @param TypeFactory               $typeFactory               Index type factory.
      * @param MappingFactory            $mappingFactory            Index mapping factory.
      * @param MappingFieldFactory       $mappingFieldFactory       Index mapping field factory.
      * @param DataSourceResolverFactory $dataSourceResolverFactory Data Source Resolver Factory.
@@ -97,14 +89,12 @@ class Config extends \Magento\Framework\Config\Data
     public function __construct(
         Reader $reader,
         CacheInterface $cache,
-        TypeFactory $typeFactory,
         MappingFactory $mappingFactory,
         MappingFieldFactory $mappingFieldFactory,
         DataSourceResolverFactory $dataSourceResolverFactory,
         SerializerInterface $serializer,
         $cacheId = self::CACHE_ID
     ) {
-        $this->typeFactory               = $typeFactory;
         $this->mappingFactory            = $mappingFactory;
         $this->mappingFieldFactory       = $mappingFieldFactory;
         $this->dataSourceResolverFactory = $dataSourceResolverFactory;
@@ -149,14 +139,10 @@ class Config extends \Magento\Framework\Config\Data
     {
         $types = [];
 
-        foreach ($indexConfigData['types'] as $typeName => $typeConfigData) {
+        foreach ($indexConfigData['types'] as $typeConfigData) {
             $fields  = $this->getMappingFields($indexName, $typeConfigData);
             $mapping = $this->mappingFactory->create(
                 ['idFieldName' => $typeConfigData['idFieldName'], 'fields' => $fields]
-            );
-
-            $types[$typeName] = $this->typeFactory->create(
-                ['name' => $typeName, 'mapping' => $mapping]
             );
         }
 
@@ -187,7 +173,7 @@ class Config extends \Magento\Framework\Config\Data
     private function getMappingFields($indexName, $typeConfigData)
     {
         \Magento\Framework\Profiler::start('ES:Get dynamic fields config');
-        $fields = $this->getDynamicFields($indexName, $typeConfigData);
+        $fields = $this->getDynamicFields($indexName);
         \Magento\Framework\Profiler::stop('ES:Get dynamic fields config');
 
         foreach ($typeConfigData['mapping']['staticFields'] as $fieldName => $fieldConfig) {
@@ -211,27 +197,25 @@ class Config extends \Magento\Framework\Config\Data
      *
      * @SuppressWarnings(PHPMD.ElseExpression)
      *
-     * @param string $indexName  Index Name.
-     * @param array  $configData Processed configuration.
+     * @param string $indexName Index Name.
      *
      * @return \Smile\ElasticsuiteCore\Api\Index\Mapping\FieldInterface[]
      */
-    private function getDynamicFields($indexName, $configData)
+    private function getDynamicFields($indexName)
     {
         $fields       = [];
         $cacheId      = implode('|', [$this->cacheId, $indexName]);
         $fieldsConfig = $this->cache->load($cacheId);
 
         if (false === $fieldsConfig) {
-            $legacyDataSources = [$indexName => $configData['datasources']]; // @deprecated.
-            $resolver          = $this->dataSourceResolverFactory->create(['legacyDataSources' => $legacyDataSources]);
-            $dataSources       = $resolver->getDataSources($indexName);
+            $resolver    = $this->dataSourceResolverFactory->create();
+            $dataSources = $resolver->getDataSources($indexName);
 
             /** @var DynamicFieldProviderInterface[] $dynamicFieldProviders */
             $dynamicFieldProviders = array_filter($dataSources, [$this, 'isDynamicFieldsProvider']);
 
             foreach ($dynamicFieldProviders as $dynamicFieldProvider) {
-                $fields   += $dynamicFieldProvider->getFields();
+                $fields += $dynamicFieldProvider->getFields();
             }
 
             $fieldsConfig = [];

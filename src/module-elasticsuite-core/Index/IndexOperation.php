@@ -14,6 +14,7 @@
 
 namespace Smile\ElasticsuiteCore\Index;
 
+use Smile\ElasticsuiteCore\Api\Index\Bulk\BulkResponseInterface;
 use Smile\ElasticsuiteCore\Api\Index\IndexOperationInterface;
 
 /**
@@ -130,15 +131,14 @@ class IndexOperation implements IndexOperationInterface
     public function createIndex($indexIdentifier, $store)
     {
         $index         = $this->initIndex($indexIdentifier, $store, false);
-        $indexSettings = ['settings' => $this->indexSettings->getCreateIndexSettings()];
+        $indexSettings = [
+            'settings' => $this->indexSettings->getCreateIndexSettings() + $this->indexSettings->getDynamicIndexSettings($store),
+        ];
         $indexSettings['settings']['analysis'] = $this->indexSettings->getAnalysisSettings($store);
 
         $this->client->createIndex($index->getName(), $indexSettings);
 
-        foreach ($index->getTypes() as $currentType) {
-            $this->client->putMapping($index->getName(), $currentType->getName(), $index->getMapping()->asArray());
-        }
-
+        $this->client->putMapping($index->getName(), $index->getMapping()->asArray());
 
         return $index;
     }
@@ -179,44 +179,10 @@ class IndexOperation implements IndexOperationInterface
             throw new \LogicException('Can not execute empty bulk.');
         }
 
-        $bulkParams = ['body' => $bulk->getOperations()];
-
+        $bulkParams      = ['body' => $bulk->getOperations()];
         $rawBulkResponse = $this->client->bulk($bulkParams);
 
-        /**
-         * @var \Smile\ElasticsuiteCore\Api\Index\Bulk\BulkResponseInterface
-         */
-        $bulkResponse = $this->objectManager->create(
-            'Smile\ElasticsuiteCore\Api\Index\Bulk\BulkResponseInterface',
-            ['rawResponse' => $rawBulkResponse]
-        );
-
-        if ($bulkResponse->hasErrors()) {
-            foreach ($bulkResponse->aggregateErrorsByReason() as $error) {
-                $sampleDocumentIds = implode(', ', array_slice($error['document_ids'], 0, 10));
-                $errorMessages = [
-                    sprintf(
-                        "Bulk %s operation failed %d times in index %s for type %s.",
-                        $error['operation'],
-                        $error['count'],
-                        $error['index'],
-                        $error['document_type']
-                    ),
-                    sprintf(
-                        "Error (%s) : %s.",
-                        $error['error']['type'],
-                        $error['error']['reason']
-                    ),
-                    sprintf(
-                        "Failed doc ids sample : %s.",
-                        $sampleDocumentIds
-                    ),
-                ];
-                $this->logger->error(implode(" ", $errorMessages));
-            }
-        }
-
-        return $bulkResponse;
+        return $this->parseBulkResponse($rawBulkResponse);
     }
 
     /**
@@ -263,6 +229,51 @@ class IndexOperation implements IndexOperationInterface
         foreach ($deletedIndices as $deletedIndex) {
             $this->client->deleteIndex($deletedIndex);
         }
+    }
+
+    /**
+     * Compute and process a raw bulk response to a bulk response object.
+     *
+     * @param array $rawBulkResponse The raw bulk response from the client.
+     *
+     * @return BulkResponseInterface
+     */
+    protected function parseBulkResponse(array $rawBulkResponse)
+    {
+        /**
+         * @var \Smile\ElasticsuiteCore\Api\Index\Bulk\BulkResponseInterface
+         */
+        $bulkResponse = $this->objectManager->create(
+            'Smile\ElasticsuiteCore\Api\Index\Bulk\BulkResponseInterface',
+            ['rawResponse' => $rawBulkResponse]
+        );
+
+        if ($bulkResponse->hasErrors()) {
+            foreach ($bulkResponse->aggregateErrorsByReason() as $error) {
+                $sampleDocumentIds = implode(', ', array_slice($error['document_ids'], 0, 10));
+                $errorMessages = [
+                    sprintf(
+                        "Bulk %s operation failed %d times in index %s for type %s.",
+                        $error['operation'],
+                        $error['count'],
+                        $error['index'],
+                        $error['document_type']
+                    ),
+                    sprintf(
+                        "Error (%s) : %s.",
+                        $error['error']['type'],
+                        $error['error']['reason']
+                    ),
+                    sprintf(
+                        "Failed doc ids sample : %s.",
+                        $sampleDocumentIds
+                    ),
+                ];
+                $this->logger->error(implode(" ", $errorMessages));
+            }
+        }
+
+        return $bulkResponse;
     }
 
     /**
